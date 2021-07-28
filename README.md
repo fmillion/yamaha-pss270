@@ -6,8 +6,9 @@ My goal is to outfit the device with various modern features, including but not 
 
 * MIDI in and out capability, with ability to control all functions of the device
 * USB sound output capability (a USB sound device that appears as a "mic" to a PC)
-* Rechargeable Li-Ion batteries
-* Direct access to the OPL chip (e.g. use the keyboard as an external OPL synth)
+* USB power and Rechargeable Li-Ion battery power
+* Onboard MIDI playback (SD card, USB, etc.)
+* Direct access to the OPL chip (e.g. use the keyboard as an external OPL synth, playback OPL dumps, etc)
 * And more...
 
 This repository will archive documentation and code that I find and write to further this effort.
