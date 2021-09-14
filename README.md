@@ -33,6 +33,47 @@ The Yamaha PSS-270 hardware consists of the following:
 
 Main system TTL voltage is 5V. Since input voltage comes from 9V-12V of source power (either from DC input jack or batteries) there is a 5V regulator onboard. We could bypass this regulator for a direct 5V power feed from USB.
 
+### Notes
+
+The keyboard itself is matrix-encoded, with diodes in place to prevent backfeeding and allowing "N-key rollover". The control buttons are also matrixed with diodes.
+
+The CPU appears to strobe the CE pin to write to the chip, the WE pin is held low. The CE strobe lasts a minimum of 2 microseconds - if the chip is running at 1MHz, this suggests it is likely simply writing to the port address twice in a row, spanning two cycles.
+
+The polyphony of the OPL2 (and by extension the OPLL/YM2413) is dependent on the operation mode:
+
+* Tone-only mode: 9 voices, 2 operators each
+* Percussion mode: 6 voices, 2 ops each; 5 percussive sounds
+
+The keyboard voice programs can either be single-voice or dual-voice (layered). Layered instruments use two voice slots; the MCU simply activates two channels instead of one.
+
+The polyphony of the keys is dependent on both the selected voice and the auto-accompaniment setting:
+
+* Single-voice, AA off: 9 voices.
+* Layered voice, AA off: 4 voices.
+* Single-voice, AA on: 2 voices. 
+  * AA switches the chip to percussion mode, reducing tone voice polyphony to 6. AA requires four voices - one bass and three chord, along with the percussion voices. This leaves two channels free.
+* Layered voice, AA on: 1 voice.
+
+## Reading synth chip data
+
+This section details ideas on intercepting writes to the YM2413. This could be used to dump the settings for each voice, duplicate the auto-accompaniment rhythms, etc.
+
+The YM2413 follows similar logic to many early 8-bit-style synthesizer chips; an 8-bit data bus is connected to the chip, the bits are set on the bus and then either a WE or CE pin is strobed to signal the synthesizer to "read" the bytes off the bus and act accordingly. 
+
+Since the main MCU runs at 1MHz, we should be able to use an Arduino running at 16MHz to sample the data off the bus. 
+
+I have taken a PSS-270 keyboard and replaced the YM2413 chip with Dupont pins. I then created a small PCB on stripboard with an 18-pin IC socket and the necessary pins to allow a passive connection to the bus, the CE/WE pins and ground. 
+
+With an Arduino, we can connect the CE pin to an input with an ISR trigger. When the ISR is triggered, we immediately sample the data off the pins and store it in a RAM buffer. Since the Arduino runs at 16MHz, even the time needed to enter the ISR (minimum 4 cycles, maybe up to 8, but still within limits) should not impact reading from the bus. We can use the Arduino hardware UART to asynchronously send the captured data off to a computer. 
+
+For recording raw timing we can use micros() on Arduino to capture the timestamp at which the bytes arrived and include this in the data being sent via the serial port.
+
+This will also require setting up some type of FIFO buffer in code, since sending the bytes out via serial will be much slower than the theoretical maximum of the input bytes. However, since the synth is only receiving bytes when events occur, there should be plenty of time between events to empty the FIFO. We realistically should only need to store 16 or 32 bytes of data to accommodate the difference in speed between the synth data and serial.
+
+In theory, I should be able to inject data into the YM chip via this same method. Todo: research how to handle the situation where the MCU tries to send data at the same time as my own device. Perhaps an array of MOSFETs to "bank-switch" the YM between my own MCU and the keyboard's internal MCU? Or a more fancy approach would be combining the two approaches - setting up an Arduino as a man-in-the-middle for the YM chip. When the host MCU sends bytes, store them in a FIFO; when the Arduino generates its own bytes, also store in the same FIFO. Then dump the FIFO continuously to the actual YM chip. This needs additional thought/research.
+
+Also todo would be to write a simple script to take this data and produce, say, a VGM file.
+
 
 Dumping the ROM
 ---------------
